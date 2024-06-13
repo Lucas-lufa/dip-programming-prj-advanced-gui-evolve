@@ -109,20 +109,20 @@ def get_vid_save_path() -> str:
     Returns output path from config variables, will set default to root of project\\out\\videos\\
     :return: file path as string
     """
+    # vid_download_path = config("UserSettings", "video_save_path")
     vid_download_path = config("UserSettings", "video_save_path")
     # Set default output path for video download path
     if vid_download_path == "output_path":
         default_path = Path.cwd().parent / "out" / "videos"
         if not default_path.exists():
             default_path.mkdir(parents=True, exist_ok=True)
-
-        return str(default_path)
+        return str(default_path) + SLASH
     # Check if the path ends with a backslash
     vid_download_path = Path(vid_download_path)
     if not vid_download_path.is_dir():
         return f"{vid_download_path}" + SLASH
 
-    return vid_download_path
+    return str(vid_download_path) + SLASH
 
 
 def get_output_path() -> str:
@@ -392,13 +392,13 @@ def download_youtube_video(video_url: str) -> str:
         yt_video = YouTube(video_url)
         yt_stream = yt_video.streams.filter(res="720p", mime_type="video/mp4", progressive=True).first()
         if yt_stream:
-            yt_filename = format_youtube_video_name(yt_stream.default_filename)
+            yt_filename, alias = format_youtube_video_name(yt_stream.default_filename)
             yt_stream.download(output_path=get_vid_save_path(), filename=yt_filename)
             filename = yt_filename
             file_hash = hash_video_file(filename)
             if file_already_exists(file_hash):
                 return f"/play_video/{filename}"
-            add_video_to_user_data(filename, filename, file_hash, youtube_url=video_url)
+            add_video_to_user_data(filename, alias, file_hash, youtube_url=video_url)
             return f"/play_video/{filename}"
     except RegexMatchError as error:
         logging.error(f"Failed to download from youtube with error: {error}")
@@ -407,10 +407,11 @@ def download_youtube_video(video_url: str) -> str:
 
 def format_youtube_video_name(filename: str) -> Union[str, None]:
     """
+    Takes off the file extension and makes a copy for the alias.
     Formats a given string to remove trailing/leading white space and remove multiple spaces between words, replaces
     spaces with underscores.
     :param filename: Un-formatted video name
-    :return: Formatted video name
+    :return: Formatted video name, alias video name
     """
     if filename is None:
         return None
@@ -418,11 +419,12 @@ def format_youtube_video_name(filename: str) -> Union[str, None]:
     if "." in filename:
         file_extension = filename[filename.rindex("."):].strip()
         filename = filename.replace(file_extension, "")
+        alias = filename
     while True:
         if "  " in filename:
             filename = filename.replace("  ", " ")
         else:
-            return f"{filename.strip().replace(' ', '_')}{file_extension}"
+            return f"{filename.strip().replace(' ', '_')}{file_extension}" ,alias
 
 
 def filename_exists_in_userdata(filename: str) -> bool:
